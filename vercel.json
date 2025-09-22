@@ -4,9 +4,8 @@
     {
       "src": "frontend/phish-guard-lite/package.json",
       "use": "@vercel/static-build",
-      "options": {
-        "buildCommand": "npm run build",
-        "outputDirectory": "frontend/phish-guard-lite/dist"
+      "config": {
+        "distDir": "frontend/phish-guard-lite/dist"
       }
     },
     {
