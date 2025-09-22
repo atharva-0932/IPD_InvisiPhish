@@ -23,7 +23,7 @@ export default function AnalyzeEmail() {
     setAnalysisResult(null);
 
     try {
-      const response = await fetch('http://127.0.0.1:5000/analyze_message', {
+      const response = await fetch('/api/analyze_message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

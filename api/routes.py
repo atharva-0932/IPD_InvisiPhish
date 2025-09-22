@@ -1,11 +1,11 @@
 from flask import Blueprint, request, jsonify
-from database import store_message, get_messages
-from preprocess import preprocess_message
-from preprocess import clean_message
-from fpgrowth import process_message
-from deeplearning import get_dl_phishing_score
-from sentiment import classify_intent_zero_shot
-from genai import generate
+from .database import store_message, get_messages
+from .preprocess import preprocess_message
+from .preprocess import clean_message
+from .fpgrowth import process_message
+from .deeplearning import get_dl_phishing_score
+from .sentiment import classify_intent_zero_shot
+from .genai import generate
 routes = Blueprint("routes", __name__)
 
 @routes.route('/store_message', methods=['POST'])

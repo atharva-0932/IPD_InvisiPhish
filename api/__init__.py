@@ -1,7 +1,7 @@
 # __init__.py
 from flask import Flask
 from flask_cors import CORS
-from routes import routes
+from .routes import routes
 
 def create_app():
     app = Flask(__name__)

@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/phish-guard-lite/package.json",
+      "use": "@vercel/static-build",
+      "options": {
+        "buildCommand": "npm run build",
+        "outputDirectory": "frontend/phish-guard-lite/dist"
+      }
+    },
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/phish-guard-lite/dist/$1"
+    }
+  ]
+}

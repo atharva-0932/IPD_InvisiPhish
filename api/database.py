@@ -2,11 +2,11 @@ import os
 import re
 from supabase import create_client
 from dotenv import load_dotenv
-from preprocess import preprocess_message
-from fpgrowth import process_message
-from deeplearning import get_dl_phishing_score
-from sentiment import classify_intent_zero_shot
-from genai import generate
+from .preprocess import preprocess_message
+from .fpgrowth import process_message
+from .deeplearning import get_dl_phishing_score
+from .sentiment import classify_intent_zero_shot
+from .genai import generate
 # Load environment variables
 load_dotenv()
 
