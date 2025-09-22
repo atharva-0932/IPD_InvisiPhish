@@ -19,25 +19,43 @@ export default function AnalyzeSMS() {
   const handleAnalysis = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    // Mock analysis - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const mockResult = {
-      score: Math.floor(Math.random() * 10) + 1,
-      result: Math.random() > 0.5 ? "phishing" : "legitimate",
-      confidence: Math.floor(Math.random() * 30) + 70,
-      threats: ["Suspicious URL", "Urgency tactics", "Credential harvesting"],
-      analysis: "This message contains several red flags including urgent language and suspicious links."
-    };
-    
-    setAnalysisResult(mockResult);
-    setLoading(false);
-    
-    toast({
-      title: "Analysis Complete",
-      description: `Message analyzed with ${mockResult.confidence}% confidence`
-    });
+    setAnalysisResult(null);
+
+    try {
+      const response = await fetch('http://127.0.0.1:5000/analyze_message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message_type: 'sms',
+          sender_number: senderNumber,
+          message: messageContent,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setAnalysisResult(result.analysis);
+
+      toast({
+        title: "Analysis Complete",
+        description: `Message analyzed successfully.`,
+      });
+
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      toast({
+        title: "Analysis Failed",
+        description: "Could not analyze the message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getResultVariant = (result: string) => {
@@ -129,41 +147,41 @@ export default function AnalyzeSMS() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Risk Score:</span>
-                <Badge variant={analysisResult.score > 7 ? "destructive" : analysisResult.score > 4 ? "secondary" : "default"}>
-                  {analysisResult.score}/10
+                <Badge variant={analysisResult.final_score > 70 ? "destructive" : analysisResult.final_score > 40 ? "secondary" : "default"}>
+                  {analysisResult.final_score}/100
                 </Badge>
               </div>
               
               <div className="flex items-center justify-between">
                 <span className="font-medium">Classification:</span>
-                <Badge variant={getResultVariant(analysisResult.result)} className="flex items-center space-x-1">
-                  {getResultIcon(analysisResult.result)}
-                  <span className="capitalize">{analysisResult.result}</span>
+                <Badge variant={getResultVariant(analysisResult.final_result.toLowerCase())} className="flex items-center space-x-1">
+                  {getResultIcon(analysisResult.final_result.toLowerCase())}
+                  <span className="capitalize">{analysisResult.final_result}</span>
                 </Badge>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="font-medium">Confidence:</span>
-                <span className="text-sm">{analysisResult.confidence}%</span>
+                <span className="font-medium">Risk Level:</span>
+                <span className="text-sm">{analysisResult.risk_level}</span>
               </div>
               
-              {analysisResult.threats && (
+              {analysisResult.scores_breakdown.genai.explanation && (
                 <div>
-                  <span className="font-medium block mb-2">Detected Threats:</span>
-                  <div className="space-y-1">
-                    {analysisResult.threats.map((threat: string, index: number) => (
-                      <Badge key={index} variant="outline" className="mr-2 mb-1">
-                        {threat}
-                      </Badge>
+                  <span className="font-medium block mb-2">GenAI Feedback:</span>
+                  <p className="text-sm text-muted-foreground">{analysisResult.scores_breakdown.genai.explanation}</p>
+                </div>
+              )}
+
+              {analysisResult.scores_breakdown.fp_growth.keywords && analysisResult.scores_breakdown.fp_growth.keywords.length > 0 && (
+                <div>
+                  <span className="font-medium block mb-2">Extracted Keywords:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {analysisResult.scores_breakdown.fp_growth.keywords.map((keyword: string, index: number) => (
+                      <Badge key={index} variant="secondary">{keyword}</Badge>
                     ))}
                   </div>
                 </div>
               )}
-              
-              <div>
-                <span className="font-medium block mb-2">Analysis Summary:</span>
-                <p className="text-sm text-muted-foreground">{analysisResult.analysis}</p>
-              </div>
             </CardContent>
           </Card>
         )}

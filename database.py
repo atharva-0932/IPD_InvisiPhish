@@ -43,88 +43,87 @@ def analyze_sender_number(sender):
         return "legit"
     return "suspicious"
 
-def store_message(message_type, original_text=None, sender_number=None, email_subject=None, email_body=None, sender_email=None,cleaned_subject=None, cleaned_body=None, links=None, genai_feedback=None):
+def store_message(
+    message_type,
+    original_text,
+    sender_number,
+    email_subject,
+    email_body,
+    sender_email,
+    genai_feedback,
+    cleaned_subject,
+    cleaned_body,
+    links,
+    fp_score,
+    dl_score,
+    sentiment_score,
+    genai_score,
+    intent_label,
+    extracted_keywords  # Added to accept keywords
+):
     """
-    Store SMS or Email message, extract features using FP-Growth & Deep Learning,
-    and store the final risk assessment in Supabase.
+    Stores a message and its analysis results in the database, matching the specific
+    schema provided by the user.
     """
-    # Process with FP-Growth
-    result = process_message(message_type, original_text, email_subject, email_body)
-    fp_score = result.get("final_score")
+    try:
+        # Use the pre-calculated scores passed as arguments
+        fp_growth_score = fp_score
+        deep_learning_score = dl_score
+        sentiment_analysis_score = sentiment_score
+        genai_score_val = genai_score
 
-    # Process with Deep Learning
-    text = original_text if message_type == "sms" else f"{email_subject or ''} {email_body or ''}"
-    dl_score = get_dl_phishing_score(text)
+        # Calculate the combined score using the provided scores and defined weights
+        combined_score = round(
+            (fp_growth_score * 0.15) +
+            (deep_learning_score * 0.15) +
+            (sentiment_analysis_score * 0.30) +
+            (genai_score_val * 0.40),
+            2
+        )
 
-    # Process with Sentiment Analysis
-    text = original_text if message_type == "sms" else f"{email_subject or ''} {email_body or ''}"
-    sentiment_result = classify_intent_zero_shot(text)
-    intent_label = list(sentiment_result.keys())[0]
-    sentiment_score = list(sentiment_result.values())[0]
-    # Getting output from GenAI
-    genai_result = generate(f"Message: {original_text}\nSender Number: {sender_number}")
-    genai_score = genai_result.get("phishing_score", 0)
-    genai_feedback = genai_result.get("explanation", "No explanation provided")
-    # ✅ Compute final averaged score
-    final_score = round((fp_score * 0.15) + (dl_score * 0.15) + (sentiment_score*0.30) + (genai_score*0.40), 2) 
+        # Determine final result
+        final_result = "Phishing" if 41 <= combined_score <= 100 else "Legitimate"
 
-    # ✅ Determine final classification based on threshold
-    if final_score >= 41 and final_score <= 100:
-        final_result = "Phishing"
-    else:
-        final_result = "Legitimate"
-    processed_data = preprocess_message({
-        "message_type": message_type,
-        "message": original_text if message_type == "sms" else email_body,
-        "email_subject": email_subject,
-        "sender_email": sender_email,
-        "sender_number": sender_number
-    })
-    
-    cleaned_body = processed_data.get("cleaned_body", "")  # Default to empty string if missing
-    cleaned_subject = processed_data.get("cleaned_subject", "")  # Default to empty string if missing
-    links = processed_data.get("links", [])  # Default to empty list if missing
-    sender_email = processed_data.get("sender_email", sender_email if message_type == "email" else None)
-    sender_number = processed_data.get("sender_number", sender_number if message_type == "sms" else None)  # Default sender
-    # Process SMS messages
-    if message_type == "sms":
-        
-        data = {
-            "message_type": "sms",
+        # Analyze sender details
+        sender_risk = analyze_sender_number(sender_number) if message_type == "sms" else "N/A"
+        email_risk = analyze_sender_email(sender_email) if message_type == "email" else "N/A"
+
+        # Prepare data for Supabase, matching the user's schema from the image
+        data_to_insert = {
+            "message_type": message_type,
             "original_text": original_text,
             "sender_number": sender_number,
-            "sender_number_risk": analyze_sender_number(sender_number) if sender_number else None,
-            "cleaned_subject": None,
-            "cleaned_body": None,
-            "sender_email": None,
-            "email_risk_level": None,
-            "links": links,
-            "extracted_keywords": result.get("extracted_keywords"),
-            "intent_label": intent_label,
-            "final_score": final_score,
-            "final_result": final_result,
-            "genai_feedback": genai_feedback
-        }
-    # Process Email messages
-    elif message_type == "email":
-        data = {
-            "message_type": "email",
+            "sender_email": sender_email,
             "email_subject": email_subject,
             "email_body": email_body,
             "cleaned_subject": cleaned_subject,
             "cleaned_body": cleaned_body,
-            "sender_email": sender_email,
-            "email_risk_level": analyze_sender_email(sender_email) if sender_email else None,
-            "sender_number": None,
-            "sender_number_risk": None,
             "links": links,
-            "extracted_keywords": result.get("extracted_keywords"),
-            "intent_label": intent_label,
-            "final_score": final_score,
-            "final_result": final_result,
-            "genai_feedback": genai_feedback
+            "extracted_keywords": extracted_keywords,  # Matches 'extracted_key' column
+            "email_risk_level": email_risk,         # Matches 'email_risk_lev' column
+            "sender_number_risk": sender_risk,           # Matches 'sender_numb' column
+            "final_score": combined_score,        # Matches 'final_score' column
+            "final_result": final_result,         # Matches 'final_result' column
+            "genai_feedback": genai_feedback,     # Matches 'genai_feedback' column
+            "intent_label": intent_label          # Matches 'intent_label' column
         }
-    return supabase.table("messages").insert(data).execute()
+
+        # Insert data into Supabase
+        response = supabase.table("messages").insert(data_to_insert).execute()
+
+        # Check for successful insertion (status code 201 means 'Created')
+        if response.status_code == 201 and response.data:
+            print("Successfully inserted data into Supabase.")
+            return response
+        else:
+            # Provide detailed error logging if insertion fails
+            print(f"Error inserting data into Supabase. Status Code: {response.status_code}")
+            print(f"Response: {response.json()}")
+            return {"error": f"Failed to insert data. Status: {response.status_code}"}
+
+    except Exception as e:
+        print(f"Error in store_message: {e}")
+        return {"error": str(e)}
 
 def get_messages():
     """Retrieve all stored messages from Supabase."""
