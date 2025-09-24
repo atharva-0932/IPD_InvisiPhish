@@ -6,6 +6,7 @@ from .fpgrowth import process_message
 from .deeplearning import get_dl_phishing_score
 from .sentiment import classify_intent_zero_shot
 from .genai import generate
+from .pdf_analysis import analyze_pdf_with_virustotal
 routes = Blueprint("routes", __name__)
 
 @routes.route('/store_message', methods=['POST'])
@@ -253,3 +254,75 @@ def generate_recommendations(score, result, links):
         recommendations.append(f"🔗 Found {len(links)} link(s) - always verify URLs before clicking")
     
     return recommendations
+
+@routes.route('/analyze_pdf', methods=['POST'])
+def analyze_pdf():
+    """
+    Analyze a PDF file for malware/phishing threats using VirusTotal API.
+    Based on the existing sandboxVT.py implementation.
+    """
+    print("[DEBUG] PDF analysis endpoint hit!")
+    try:
+        # Check if a file was uploaded
+        if 'file' not in request.files:
+            print("[ERROR] No file in request")
+            return jsonify({
+                "success": False,
+                "error": "No file uploaded"
+            }), 400
+        
+        file = request.files['file']
+        print(f"[DEBUG] File received: {file.filename}")
+        
+        # Validate file
+        if file.filename == '':
+            print("[ERROR] Empty filename")
+            return jsonify({
+                "success": False,
+                "error": "No file selected"
+            }), 400
+        
+        if not file.filename.lower().endswith('.pdf'):
+            return jsonify({
+                "success": False,
+                "error": "Only PDF files are supported"
+            }), 400
+        
+        # Read file data
+        file_data = file.read()
+        filename = file.filename
+        
+        # Basic file size check (limit to 32MB as per VirusTotal)
+        if len(file_data) > 32 * 1024 * 1024:  # 32MB
+            return jsonify({
+                "success": False,
+                "error": "File size exceeds 32MB limit"
+            }), 400
+        
+        if len(file_data) == 0:
+            return jsonify({
+                "success": False,
+                "error": "File is empty"
+            }), 400
+        
+        print(f"[*] Analyzing PDF file: {filename} ({len(file_data)} bytes)")
+        
+        # Analyze with VirusTotal
+        analysis_result = analyze_pdf_with_virustotal(file_data, filename)
+        
+        if not analysis_result["success"]:
+            return jsonify(analysis_result), 500
+        
+        # Add file size information for frontend
+        analysis_result["fileSize"] = f"{round(len(file_data) / (1024 * 1024), 2)} MB"
+        analysis_result["fileName"] = filename
+        
+        print(f"[+] PDF analysis completed for {filename}")
+        return jsonify(analysis_result)
+        
+    except Exception as e:
+        print(f"Error in analyze_pdf: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": f"PDF analysis failed: {str(e)}"
+        }), 500

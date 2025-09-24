@@ -2,8 +2,12 @@ import requests
 import time
 import os
 
-virustotal_api_key = "2ade5a175307896903423d641250585a23312585f0137dca65b32b3e189b5126" #Add virus total api key, if needed ask me
+virustotal_api_key = os.getenv('VIRUSTOTAL_API_KEY')  # Now reads from .env file
 FILE_PATH = "sample_file.pdf" #Add file path for testing code
+
+if not virustotal_api_key:
+    print("[-] VirusTotal API key not found in environment variables")
+    exit(1)
 
 url = "https://www.virustotal.com/api/v3/files"
 headers = {

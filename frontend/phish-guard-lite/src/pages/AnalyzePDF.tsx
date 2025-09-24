@@ -39,27 +39,71 @@ export default function AnalyzePDF() {
     if (!selectedFile) return;
     
     setLoading(true);
-    
-    // Mock analysis - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const mockResult = {
-      score: Math.floor(Math.random() * 10) + 1,
-      result: Math.random() > 0.5 ? "phishing" : "legitimate",
-      confidence: Math.floor(Math.random() * 30) + 70,
-      threats: ["Embedded malicious links", "Suspicious JavaScript", "Form hijacking", "Credential harvesting"],
-      analysis: "This PDF document contains several suspicious elements including embedded scripts and potentially malicious links.",
-      fileName: selectedFile.name,
-      fileSize: (selectedFile.size / 1024 / 1024).toFixed(2) + " MB"
-    };
-    
-    setAnalysisResult(mockResult);
-    setLoading(false);
-    
-    toast({
-      title: "Analysis Complete",
-      description: `PDF analyzed with ${mockResult.confidence}% confidence`
-    });
+    setAnalysisResult(null);
+
+    try {
+      console.log('🚀 Starting PDF analysis for:', selectedFile.name);
+      
+      // Create FormData to send the file
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      console.log('📦 FormData created with file:', selectedFile.name);
+
+      console.log('📡 Making API call to /api/analyze_pdf');
+      const response = await fetch('/api/analyze_pdf', {
+        method: 'POST',
+        body: formData,
+      });
+      console.log('📡 Response received:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('📋 API Response data:', result);
+      
+      if (!result.success) {
+        console.error('❌ API returned error:', result.error);
+        throw new Error(result.error || 'Analysis failed');
+      }
+
+      console.log('✅ Analysis successful, mapping results...');
+      // Map the backend response to the frontend expected format
+      const mappedResult = {
+        score: result.analysis.score,
+        result: result.analysis.result,
+        confidence: result.analysis.confidence,
+        threats: result.analysis.threats || [],
+        analysis: result.analysis.analysis,
+        fileName: result.fileName,
+        fileSize: result.fileSize,
+        // Additional VirusTotal specific data
+        riskScore: result.analysis.risk_score,
+        riskLevel: result.analysis.risk_level,
+        classification: result.analysis.classification,
+        detectionStats: result.analysis.detection_stats,
+        recommendations: result.recommendations
+      };
+      
+      console.log('🎯 Final mapped result:', mappedResult);
+      setAnalysisResult(mappedResult);
+
+      toast({
+        title: "Analysis Complete",
+        description: `PDF analyzed with ${mappedResult.confidence}% confidence using VirusTotal`
+      });
+
+    } catch (error) {
+      console.error("PDF Analysis failed:", error);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Could not analyze the PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getResultVariant = (result: string) => {
@@ -204,6 +248,35 @@ export default function AnalyzePDF() {
                 <span className="font-medium block mb-2">Analysis Summary:</span>
                 <p className="text-sm text-muted-foreground">{analysisResult.analysis}</p>
               </div>
+
+              {analysisResult.detectionStats && (
+                <div>
+                  <span className="font-medium block mb-2">VirusTotal Detection Stats:</span>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>Malicious: <Badge variant="destructive">{analysisResult.detectionStats.malicious}</Badge></div>
+                    <div>Suspicious: <Badge variant="secondary">{analysisResult.detectionStats.suspicious}</Badge></div>
+                    <div>Harmless: <Badge variant="default">{analysisResult.detectionStats.harmless}</Badge></div>
+                    <div>Undetected: <Badge variant="outline">{analysisResult.detectionStats.undetected}</Badge></div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Scanned by {analysisResult.detectionStats.total_engines} security engines
+                  </p>
+                </div>
+              )}
+
+              {analysisResult.recommendations && (
+                <div>
+                  <span className="font-medium block mb-2">Security Recommendations:</span>
+                  <div className="space-y-1">
+                    {analysisResult.recommendations.slice(0, 5).map((rec: string, index: number) => (
+                      <p key={index} className="text-xs text-muted-foreground flex items-start">
+                        <span className="mr-2">•</span>
+                        <span>{rec}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
