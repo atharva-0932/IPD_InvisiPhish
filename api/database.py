@@ -111,15 +111,15 @@ def store_message(
         # Insert data into Supabase
         response = supabase.table("messages").insert(data_to_insert).execute()
 
-        # Check for successful insertion (status code 201 means 'Created')
-        if response.status_code == 201 and response.data:
+        # Check for successful insertion
+        if response.data:
             print("Successfully inserted data into Supabase.")
             return response
         else:
             # Provide detailed error logging if insertion fails
-            print(f"Error inserting data into Supabase. Status Code: {response.status_code}")
-            print(f"Response: {response.json()}")
-            return {"error": f"Failed to insert data. Status: {response.status_code}"}
+            print(f"Error inserting data into Supabase.")
+            print(f"Response: {response}")
+            return {"error": "Failed to insert data into database"}
 
     except Exception as e:
         print(f"Error in store_message: {e}")

@@ -107,14 +107,13 @@ def analyze_message():
         sentiment_score = list(sentiment_result.values())[0] if sentiment_result else 0
         
         # 5. GenAI Analysis - Gemini (40% weight)
-        try:
-            genai_result = generate(full_text)
-            genai_score = genai_result.get("phishing_score", 0)
-            genai_explanation = genai_result.get("explanation", "No explanation available")
-        except Exception as e:
-            print(f"GenAI error: {str(e)}")
-            genai_score = 0
-            genai_explanation = "GenAI analysis unavailable"
+        genai_result = generate(full_text)
+        genai_score = genai_result.get("phishing_score", 0)
+        genai_explanation = genai_result.get("explanation", "No explanation available")
+        
+        # Log if GenAI failed
+        if genai_score == 0 and "unavailable" in genai_explanation.lower():
+            print(f"GenAI analysis failed: {genai_explanation}")
         
         # Calculate combined score using database weights:
         # FP-Growth: 15%, Deep Learning: 15%, Sentiment: 30%, GenAI: 40%
