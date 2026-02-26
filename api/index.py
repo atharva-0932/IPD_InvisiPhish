@@ -1,4 +1,4 @@
-from api.__init__ import create_app
+from . import create_app
 from flask import send_from_directory
 
 app = create_app()

@@ -1,40 +1,64 @@
+# deeplearning.py
+import os
 import torch
-from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+import logging
 import torch.nn.functional as F
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
-# Load the pre-trained tokenizer and model (replace with fine-tuned model if available)
-MODEL_NAME = "distilbert-base-uncased"
-tokenizer = DistilBertTokenizer.from_pretrained(MODEL_NAME)
-model = DistilBertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  # 2 classes: Legit or Phishing
+logging.basicConfig(level=logging.INFO)
 
-# Ensure model is in evaluation mode
-model.eval()
+# Look for a local fine-tuned model first
+LOCAL_MODEL_DIR = os.path.join(os.path.dirname(__file__), "models", "distilbert_saved")
+FALLBACK_MODEL_NAME = "distilbert-base-uncased"
 
-# --------------------------
-# Function: Get Deep Learning Phishing Score
-# --------------------------
+def load_model_and_tokenizer():
+    try:
+        if os.path.exists(LOCAL_MODEL_DIR) and os.path.isdir(LOCAL_MODEL_DIR):
+            logging.info(f"Loading local DistilBERT model from {LOCAL_MODEL_DIR}")
+            tokenizer = DistilBertTokenizer.from_pretrained(LOCAL_MODEL_DIR)
+            model = DistilBertForSequenceClassification.from_pretrained(LOCAL_MODEL_DIR)
+        else:
+            logging.info(f"Local model not found. Loading pre-trained '{FALLBACK_MODEL_NAME}' from HuggingFace.")
+            tokenizer = DistilBertTokenizer.from_pretrained(FALLBACK_MODEL_NAME)
+            model = DistilBertForSequenceClassification.from_pretrained(FALLBACK_MODEL_NAME, num_labels=2)
+        model.eval()
+        return tokenizer, model
+    except Exception as e:
+        logging.exception("Failed to load DL model/tokenizer")
+        raise e
+
+# Load at import time
+try:
+    tokenizer, model = load_model_and_tokenizer()
+except Exception as e:
+    # If loading fails, set to None and handle in scoring function
+    tokenizer, model = None, None
+
 def get_dl_phishing_score(text):
     """
-    Uses DistilBERT to classify a message as phishing or legitimate.
-    Returns a phishing confidence score (0-100).
+    Returns a 0-100 phishing confidence score using DistilBERT.
+    If model/tokenizer failed to load, returns 0 and logs the error.
     """
-    if not text or text.strip() == "":
-        return 0  # Empty messages are safe
+    try:
+        if not text or text.strip() == "":
+            return 0.0
+        if tokenizer is None or model is None:
+            logging.warning("DL model/tokenizer not loaded; returning 0 for dl_score")
+            return 0.0
 
-    # Tokenize input text & convert to tensors
-    inputs = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
-    
-    with torch.no_grad():  # Disable gradient computation (inference mode)
-        outputs = model(**inputs)
-    
-    # Get predicted probabilities (softmax activation)
-    probabilities = F.softmax(outputs.logits, dim=-1)
-    phishing_score = probabilities[0][1].item() * 100  # Convert to percentage (0-100)
+        # Ensure input length is reasonable
+        inputs = tokenizer(text, padding=True, truncation=True, return_tensors="pt", max_length=256)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        probs = torch.softmax(outputs.logits, dim=-1)[0]
+        phishing_score = float(probs[1].item() * 100)
+        return round(phishing_score, 2)
+    except Exception as e:
+        logging.exception("Error computing DL phishing score")
+        return 0.0
 
-    return round(phishing_score, 2) 
-
-
+# Simple test when run directly
 if __name__ == "__main__":
-    test_sms = "URGENT! Your bank account is at risk. Click here to verify now!"
-    score = get_dl_phishing_score(test_sms)
-    print(f"DistilBERT Phishing Score: {score}%")
+    test = "URGENT! Verify your account here: http://phishy.example.com"
+    print("DL score:", get_dl_phishing_score(test))
+

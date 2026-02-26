@@ -7,6 +7,7 @@ from .deeplearning import get_dl_phishing_score
 from .sentiment import classify_intent_zero_shot
 from .genai import generate
 from .pdf_analysis import analyze_pdf_with_virustotal
+import json
 routes = Blueprint("routes", __name__)
 
 @routes.route('/store_message', methods=['POST'])
@@ -107,9 +108,23 @@ def analyze_message():
         sentiment_score = list(sentiment_result.values())[0] if sentiment_result else 0
         
         # 5. GenAI Analysis - Gemini (40% weight)
-        genai_result = generate(full_text)
+        genai_result = generate(
+            input_text=full_text,
+            message_type=message_type,
+            sender_email=data.get("sender_email"),
+            email_subject=data.get("email_subject"),
+            sender_number=data.get("sender_number")
+         )
         genai_score = genai_result.get("phishing_score", 0)
-        genai_explanation = genai_result.get("explanation", "No explanation available")
+        genai_explanation = (
+            genai_result.get("explanation")
+            or genai_result.get("analysis")
+            or genai_result.get("detailed_analysis")
+            or genai_result.get("detailed_response")
+            or "No explanation available"
+        )
+
+
         
         # Log if GenAI failed
         if genai_score == 0 and "unavailable" in genai_explanation.lower():
@@ -170,7 +185,7 @@ def analyze_message():
                         "score": genai_score,
                         "weight": "40%",
                         "weighted_score": round(genai_score * 0.40, 2),
-                        "explanation": genai_explanation
+                        "genai_feedback": genai_explanation
                     }
                 },
                 "preprocessing": {
@@ -253,6 +268,14 @@ def generate_recommendations(score, result, links):
         recommendations.append(f"🔗 Found {len(links)} link(s) - always verify URLs before clicking")
     
     return recommendations
+
+@routes.route('/classify', methods=['POST'])
+def classify():
+    """
+    Alias endpoint for /analyze_message - used by Chrome extension.
+    Analyzes a message for phishing detection.
+    """
+    return analyze_message()
 
 @routes.route('/analyze_pdf', methods=['POST'])
 def analyze_pdf():
