@@ -33,11 +33,5 @@ InvisiPhish Guard is a full-stack web application designed to protect users from
     - Google Gemini Pro
     - Hugging Face Transformers (DistilBERT, BART)
     - Scikit-learn, NLTK, SpaCy
-
-
-
-
-
-
 ---
-
+InvisiPhish QR Code :  ![Repo QR Code](https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://github.com/Anuraggg-19/IPD_InvisiPhish)
