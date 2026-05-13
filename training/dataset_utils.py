@@ -287,7 +287,16 @@ def deduplicate(texts: List[str], threshold: float = 0.85) -> List[str]:
 
 def build_combined_dataset() -> pd.DataFrame:
     """
-    Builds the full training corpus per paper Section IV-A.
+    Builds the full training corpus from two primary public sources:
+
+      1. SMS Spam Collection (UCI) — 5,574 SMS messages, label: spam/ham
+      2. SpamAssassin public corpus:
+           - Spam  (~1,355 emails) → phishing/spam label
+           - Ham   (~1,508 emails) → legitimate label
+
+    The Nazario corpus (jnazario/phishing-corpus) was removed from GitHub
+    in 2025 and is no longer reachable. SpamAssassin is used as the primary
+    email source for both phishing and legitimate classes.
 
     Returns DataFrame with columns:
         label   int   1=phishing, 0=legitimate
@@ -299,7 +308,7 @@ def build_combined_dataset() -> pd.DataFrame:
     print("\n=== Building combined dataset ===")
     rows = []
 
-    # 1. SMS Spam Collection
+    # 1. SMS Spam Collection — SMS phishing + legitimate
     sms_df = load_sms_spam_collection()
     for _, row in sms_df.iterrows():
         rows.append({
@@ -308,27 +317,27 @@ def build_combined_dataset() -> pd.DataFrame:
             "source": "sms_spam",
         })
 
-    # 2. Nazario phishing emails (2021-2023 subset)
-    nazario = load_nazario_phishing_corpus(2021, 2023)
+    # 2. SpamAssassin spam — primary email phishing source
+    spam_texts = load_spamassassin_spam()
+    for text in spam_texts:
+        rows.append({"label": 1, "message": text, "source": "spamassassin_spam"})
 
-    # 3. SpamAssassin ham — sample to match Nazario count (stratified by length)
+    # 3. SpamAssassin ham — legitimate email source, sampled to match spam count
     ham_all = load_spamassassin_ham()
     ham_sorted = sorted(ham_all, key=len)
-    n = len(nazario)
+    n = len(spam_texts)
     if len(ham_sorted) >= n:
+        # Stratified by length decile (matches paper sampling strategy)
         step = len(ham_sorted) / n
         ham_sampled = [ham_sorted[int(i * step)] for i in range(n)]
     else:
         ham_sampled = ham_sorted
-
-    for text in nazario:
-        rows.append({"label": 1, "message": text, "source": "nazario"})
     for text in ham_sampled:
         rows.append({"label": 0, "message": text, "source": "spamassassin_ham"})
 
     df = pd.DataFrame(rows)
 
-    # Per-class deduplication before split
+    # Per-class deduplication before split (paper spec: Jaccard > 0.85 removed)
     phishing_texts = deduplicate(df[df["label"] == 1]["message"].tolist())
     legit_texts    = deduplicate(df[df["label"] == 0]["message"].tolist())
 
