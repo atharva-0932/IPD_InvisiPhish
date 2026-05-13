@@ -4,6 +4,31 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
 # VSCode
 .vscode/
+
+# Trained model artifacts — too large for GitHub (>100 MB)
+# Upload to HuggingFace Hub or keep locally
+api/models/distilbert_saved/
+api/models/*.safetensors
+api/models/*.bin
+api/models/*.pt
+api/models/*.pth
+
+# FP-Growth itemsets and FAISS index are also generated artifacts
+# but are small enough to optionally commit — uncomment to exclude:
+# api/models/fp_itemsets.pkl
+# api/models/phishing_index.faiss
+
+# Downloaded training data
+data/
+
+# MLflow runs
+mlruns/
+
+# Node / frontend build
+node_modules/
+frontend/phish-guard-lite/dist/
