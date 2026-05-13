@@ -26,8 +26,9 @@ api/models/*.pth
 # Downloaded training data
 data/
 
-# MLflow runs
+# MLflow runs and local DB
 mlruns/
+mlflow.db
 
 # Node / frontend build
 node_modules/
